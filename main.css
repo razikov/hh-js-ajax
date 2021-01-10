@@ -1,0 +1,30 @@
+.search__field {
+    position: relative;
+}
+
+.suggest {
+    position: absolute;
+    margin: 0;
+    border: 1px solid #ccc;
+    box-shadow: 1px 1px 3px 1px #ccc;
+    background-color: #fff;
+}
+
+.list-group {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    margin: 0;
+}
+
+.list-group__item {
+    position: relative;
+    display: block;
+    padding: .5rem 1rem;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.list-group__item:hover {
+    background-color: #eee;
+}
