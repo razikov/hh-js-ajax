@@ -1,11 +1,16 @@
 const searchMovieInput = document.getElementById('searchMovieInput');
 const suggestContainer = document.getElementById('suggestContainer');
 const searchResultsContainer = document.getElementById('searchResultsContainer');
+const maxSuggests = 10;
 const maxLocalStorageSuggests = 5;
 const maxLocalStorageSearchResults = 3;
 const keyHystorySuggests = 'historySuggests';
 const keyHystorySearchResults = "historySearchResults";
 const localStorage = window.localStorage;
+const BASE_URL_IMG = 'https://image.tmdb.org/t/p/w94_and_h141_bestv2';
+const baseApiUrl = 'https://api.themoviedb.org/3';
+const API_KEY = '492ee6396445f21839648f58ed9b15c6';
+const LANGUAGE = 'ru-RU';
 
 const setHistorySuggests = (value) => {
     let oldValue = getHistorySuggests();
@@ -41,75 +46,60 @@ const getHystorySearchResults = () => {
     return JSON.parse(rawValue);
 }
 
-const searchSuggestOld = (query) => {
-    const suggestEndpoint = encodeURI(`https://www.themoviedb.org/search/trending?query=${query}`);
+const search = (query, handler) => {
+    let url = `${baseApiUrl}/search/movie?api_key=${API_KEY}&query=${query}&&language=${LANGUAGE}`;
+    const suggestEndpoint = encodeURI(url);
     const response = fetch(suggestEndpoint, {
-        // mode: 'no-cors',
-    })
-    .then((response) => {
+    }).then((response) => {
         response.json()
             .then(response => {
-                items = response.results.slice(2,7);
-                suggestContainer.innerHTML = renderSuggestList(items);
-                console.log(items);
+                if (response.errors) {
+                    console.error(response.errors);
+                    return;
+                }
+                if (response.results.length > 0) {
+                    handler(response.results);
+                    return;
+                }
             });
-    })
-    .catch(console.error);
+    }).catch(console.error);
 }
 
 const searchSuggest = (query) => {
-    const suggestEndpoint = encodeURI(`https://www.themoviedb.org/search/movie?query=${query}`);
-    const response = fetch(suggestEndpoint, {
-        // mode: 'no-cors',
+    search(query, (elements) => {
+        renderSuggestList(parseSuggestList(elements));
     })
-    .then((response) => {
-        response.text()
-            .then(response => {
-                let doc = new DOMParser().parseFromString(response, "text/html");
-                let elements = doc.querySelectorAll('.search_results.movie .results .card');
-                let items = [];
-                for (let i=0; i<5; i++) {
-                    let value = elements[i]?.querySelector('.details h2')?.innerHTML.trim();
-                    if (value) {
-                        items.push(value)
-                    }
-                }
-                suggestContainer.innerHTML = renderSuggestList(items);
-            });
-    })
-    .catch(console.error);
 }
 
 const searchMovie = (query) => {
-    const movieEndpoint = encodeURI(`https://www.themoviedb.org/search/movie?query=${query}`);
-    const response = fetch(movieEndpoint, {
-        // mode: 'no-cors',
+    search(query, (elements) => {
+        let firstMovie = elements[0];
+        if (firstMovie) {
+            let movie = {
+                'imgSrc': BASE_URL_IMG + firstMovie.poster_path,
+                'title': firstMovie.title,
+                'releasedAt': firstMovie.release_date,
+                'description': firstMovie.overview,
+            }
+            setHistorySuggests(query);
+            setHystorySearchResults(movie);
+        }
+        renderSuggestList(parseSuggestList(elements));
+        renderSearchResults();
     })
-    .then((response) => {
-        response.text()
-            .then(response => {
-                let doc = new DOMParser().parseFromString(response, "text/html");
-                let elements = doc.querySelectorAll('.search_results.movie .results .card');
-                let firstMovie = elements[0];
-                if (firstMovie) {
-                    let image = firstMovie.querySelector('.image .poster img');
-                    let title = firstMovie.querySelector('.details h2');
-                    let releasedAt = firstMovie.querySelector('.details .release_date');
-                    let description = firstMovie.querySelector('.details .overview');
-                    let movie = {
-                        'imgSrc': 'https://www.themoviedb.org' + image.src.slice(7),
-                        'title': title.innerHTML.trim(),
-                        'releasedAt': releasedAt.innerHTML.trim(),
-                        'description': description.innerHTML.trim(),
-                    }
-                    setHistorySuggests(query);
-                    setHystorySearchResults(movie);
-                }
-                renderSuggestList();
-                renderSearchResults();
-            });
-    })
-    .catch(console.error);
+}
+
+const parseSuggestList = (elements) => {
+    let items = [];
+    let allowHystorySuggests = Math.min(maxLocalStorageSuggests, getHistorySuggests().length);
+    let limit = Math.min(elements.length, maxSuggests - allowHystorySuggests);
+    for (let i = 0; i < limit; i++) {
+        let value = elements[i].title;
+        if (value) {
+            items.push(value)
+        }
+    }
+    return items;
 }
 
 const openSuggest = () => {
@@ -122,40 +112,52 @@ const closeSuggest = () => {
     }, 300)
 }
 
-const renderSuggestList = (list = []) => {
-    let resultHtml = '<ul class="list-group">';
-    list.forEach(element => {
-        resultHtml += `<li class="list-group__item" data-value="${element}">${element}</li>`
-    });
-    getHistorySuggests().forEach(element => {
-        resultHtml += `<li class="list-group__item" data-value="${element}">${element}</li>`
-    });
-    resultHtml += '</ul>';
-    return resultHtml;
+const createSearchResultsItem = (item) => {
+    let innerHTML = `
+        <div class="search-results-item__image">
+            <img src="${item.imgSrc}" alt="${item.title}">
+        </div>
+        <div class="search-results-item__details">
+            <h3 class="search-results-item__title">${item.title}</h3>
+            <span class="search-results-item__released">${item.releasedAt}</span>
+            <div class="search-results-item__description">${item.description}</div>
+        </div>
+    `;
+    let DOMNode = document.createElement('div');
+    DOMNode.className = 'search-results-item';
+    DOMNode.innerHTML = innerHTML;
+    return DOMNode;
 }
 
-const renderSearchResultsItem = (item) => {
-    let result = '<div class="search-results-item">'
-    result += `<div class="search-results-item__image"><img src="${item.imgSrc}" alt="${item.title}"></div>`
-    result += `<div class="search-results-item__details">
-        <h3 class="search-results-item__title">${item.title}</h3>
-        <span class="search-results-item__released">${item.releasedAt}</span>
-        <div class="search-results-item__description">${item.description}</div>
-    </div>`
-    result += '</div>'
-    return result;
+const renderSuggestList = (searchSuggests = []) => {
+    const createSuggestItem = (value) => {
+        let DOMNode = document.createElement('li');
+        DOMNode.className = 'list-group__item';
+        DOMNode.dataset.value = value
+        DOMNode.innerHTML = value;
+        return DOMNode;
+    }
+
+    let suggestListNode = document.createElement('ul');
+    suggestListNode.className = 'list-group';
+
+    searchSuggests.forEach(value => {
+        suggestListNode.appendChild(createSuggestItem(value));
+    });
+
+    getHistorySuggests().forEach(value => {
+        suggestListNode.appendChild(createSuggestItem(value));
+    });
+
+    suggestContainer.innerHTML = '';
+    suggestContainer.appendChild(suggestListNode);
 }
 
 const renderSearchResults = () => {
-    const searchResults = getHystorySearchResults();
-
-    let result = '';
-    searchResults.forEach((item, index) => {
-        result += renderSearchResultsItem(item);
-        // parentElement.appendChild(resultRender);
-    })
-
-    searchResultsContainer.innerHTML = result;
+    searchResultsContainer.innerHTML = '';
+    getHystorySearchResults().forEach(item => {
+        searchResultsContainer.appendChild(createSearchResultsItem(item));
+    });
 };
 
 // init js
@@ -172,8 +174,7 @@ document.documentElement.addEventListener('click', {
 
 searchMovieInput.addEventListener('input', {
     handleEvent(event) {
-        const query = event.target.value;
-        const result = searchSuggest(query); // @todo добавить задержку
+        searchSuggest(event.target.value); // @todo добавить задержку
     }
 })
 
@@ -190,15 +191,10 @@ searchMovieInput.addEventListener('focusout', {
 })
 
 window.addEventListener("storage", (event) => {
-    console.log('event');
     if (event.key === keyHystorySearchResults) {
-        setTimeout(renderSearchResults(), 300);   
+        renderSearchResults();   
     }
 });
 
-window.onstorage = event => {
-    if (event.key != 'now') return;
-    alert(event.key + ':' + event.newValue + " at " + event.url);
-  };
-
 renderSearchResults();
+renderSuggestList();

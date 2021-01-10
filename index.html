@@ -7,14 +7,17 @@
     <title>ДЗ - Ajax</title>
 </head>
 <body>
-    <div class="search">
-        <label for="search">Что найти?</label>
-        <div class="search__field">
-            <input type="text" name="search" id="searchMovieInput" autocomplete="off">
-            <div class="suggest" id="suggestContainer" hidden></div>
+    <section class="content-container">
+        <div class="search">
+            <label class="search__label" for="search">Что найти?</label>
+            <div class="search__wrapper">
+                <input class="search__field" type="text" name="search" id="searchMovieInput" autocomplete="off">
+                <div class="suggest" id="suggestContainer" hidden></div>
+            </div>
         </div>
-    </div>
-    <div class="search-results" id="searchResultsContainer"></div>
+        <div class="search-results" id="searchResultsContainer"></div>
+    </section>
+    
     <script type="text/javascript" src="index.js"></script>
 </body>
 </html>
